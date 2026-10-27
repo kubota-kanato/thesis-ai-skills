@@ -1,0 +1,182 @@
+<!-- 図の欄（3カラム目）。md2html.py と bake.py が </body> の直前に差し込む。
+     画面幅1280px以上で、本文中の <figure> を右の欄へ移し、読んでいる箇所が参照する図を1枚ずつ出す。
+     それより狭い画面と印刷では、図を本文中の元の位置に戻す（従来の2カラム／1カラム）。
+     図番号は figcaption 先頭の「図 N」から取る。本文中の「図 N」はリンクになる。
+     本文中で図が間に文を挟まず続く箇所と、「図 10・11」のような見出しは、その図をまとめて縦に出す。 -->
+<style>
+.figref{ cursor:pointer; }
+#figpane{ display:none; }
+body.three #wrap{ grid-template-columns:236px minmax(0,calc(34em + 80px)) minmax(0,1fr); }
+body.three main > table{ display:block; overflow-x:auto; max-width:100%; }
+body.three #figpane{
+  display:block; position:sticky; top:0; height:100vh; overflow-y:auto;
+  border-left:1px solid var(--line); padding:20px 24px 40px;
+}
+#figpane .fp-nums{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:14px;
+  font-size:13px; line-height:1; }
+#figpane .fp-nums button{ font-family:inherit; font-size:13px; font-weight:500;
+  min-width:28px; height:26px; padding:0 6px; cursor:pointer;
+  background:var(--bg); color:var(--ink-2); border:1px solid var(--line); border-radius:2px; }
+#figpane .fp-nums button:hover{ color:var(--accent); border-color:var(--accent); }
+#figpane .fp-nums button.on{ background:var(--accent); color:var(--fill-ink);
+  border-color:var(--accent); font-weight:700; }
+#figpane figure{ display:none; margin:0 0 28px; }
+#figpane figure.on{ display:block; }
+#figpane figure img{ display:block; max-height:68vh; width:auto; max-width:100%;
+  margin:0 auto; cursor:zoom-in; }
+/* クリックで原寸（縮小版の1500px）にし、欄の中で横スクロールして細部を読む */
+#figpane.multi figure img{ max-height:44vh; }
+#figpane figure.zoom{ overflow-x:auto; }
+#figpane figure.zoom img{ max-height:none; max-width:none; cursor:zoom-out; }
+#figpane .fp-hint{ font-size:12px; color:var(--ink-3); margin-top:10px; }
+</style>
+<script>
+(function(){
+  var main = document.querySelector('main');
+  var wrap = document.getElementById('wrap');
+  if (!main || !wrap) return;
+
+  // 図番号 → { fig, 元の位置の目印 }。間に文を挟まず続く図は1つのまとまりにし、先頭の目印に番号を並べる
+  var figs = {}, order = [], prevFig = null, head = null;
+  [].slice.call(main.querySelectorAll('figure')).forEach(function(f){
+    var cap = f.querySelector('figcaption');
+    var m = cap && cap.textContent.match(/^\s*図\s*(\d+)/);
+    if (!m || figs[m[1]]) return;
+    var n = m[1];
+    f.id = 'fig-' + n;
+    var mark = document.createElement('span');
+    mark.className = 'fig-home';
+    if (prevFig && f.previousElementSibling === prevFig) {
+      head.setAttribute('data-figs', head.getAttribute('data-figs') + ',' + n);
+    } else {
+      head = mark;
+      mark.setAttribute('data-figs', n);
+    }
+    f.parentNode.insertBefore(mark, f);
+    figs[n] = { fig: f, mark: mark };
+    order.push(n);
+    prevFig = f;
+  });
+  if (!order.length) return;
+  order.sort(function(a, b){ return a - b; });
+
+  // 「図 1・2 ― …」のような見出しは、そこに並ぶ図をまとめて出す目印にする
+  [].slice.call(main.querySelectorAll('h2, h3')).forEach(function(h){
+    var m = h.textContent.match(/図\s?(\d+(?:\s*[・、,]\s*\d+)*)/);
+    if (!m) return;
+    var ns = m[1].split(/\s*[・、,]\s*/).filter(function(n){ return figs[n]; });
+    if (ns.length) h.setAttribute('data-figs', ns.join(','));
+  });
+
+  // 本文中の「図 N」をリンクにする（図の中・見出し・目次は除く）
+  var walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, {
+    acceptNode: function(t){
+      for (var p = t.parentNode; p && p !== main; p = p.parentNode)
+        if (/^(FIGURE|A|H1|H2|H3|CODE|PRE)$/.test(p.nodeName)) return NodeFilter.FILTER_REJECT;
+      return /図\s?\d/.test(t.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    }
+  });
+  var texts = [];
+  while (walker.nextNode()) texts.push(walker.currentNode);
+  texts.forEach(function(t){
+    var s = t.nodeValue, re = /図\s?(\d+)/g, m, last = 0, frag = document.createDocumentFragment(), hit = false;
+    while ((m = re.exec(s))) {
+      if (!figs[m[1]]) continue;
+      hit = true;
+      frag.appendChild(document.createTextNode(s.slice(last, m.index)));
+      var a = document.createElement('a');
+      a.className = 'figref'; a.href = '#fig-' + m[1];
+      a.setAttribute('data-figs', m[1]); a.textContent = m[0];
+      frag.appendChild(a);
+      last = m.index + m[0].length;
+    }
+    if (!hit) return;
+    frag.appendChild(document.createTextNode(s.slice(last)));
+    t.parentNode.replaceChild(frag, t);
+  });
+
+  // 右の欄
+  var pane = document.createElement('aside');
+  pane.id = 'figpane';
+  pane.setAttribute('aria-label', '図');
+  var nums = document.createElement('div');
+  nums.className = 'fp-nums';
+  var btns = {};
+  order.forEach(function(n){
+    var b = document.createElement('button');
+    b.type = 'button'; b.textContent = '図' + n;
+    b.addEventListener('click', function(){ show([n]); });
+    nums.appendChild(b); btns[n] = b;
+  });
+  var hint = document.createElement('p');
+  hint.className = 'fp-hint';
+  hint.textContent = '本文を読み進めると、そこで話題の図に替わる。図をクリックすると原寸で見られる。';
+  pane.appendChild(nums);
+  wrap.appendChild(pane);
+
+  var cur = [];
+  function show(ns){
+    ns = ns.filter(function(n){ return figs[n]; });
+    if (!ns.length) return;
+    cur.forEach(function(n){ figs[n].fig.classList.remove('on', 'zoom'); btns[n].classList.remove('on'); });
+    cur = ns;
+    ns.forEach(function(n){ figs[n].fig.classList.add('on'); btns[n].classList.add('on'); });
+    pane.classList.toggle('multi', ns.length > 1);
+    pane.scrollTop = 0;
+  }
+  function figsOf(el){ return el.getAttribute('data-figs').split(','); }
+
+  var three = false;
+  function setMode(on){
+    if (on === three) return;
+    three = on;
+    document.body.classList.toggle('three', on);
+    order.forEach(function(n){
+      var f = figs[n];
+      if (on) pane.insertBefore(f.fig, hint.parentNode ? hint : null);
+      else f.mark.parentNode.insertBefore(f.fig, f.mark.nextSibling);
+    });
+    if (on) { pane.appendChild(hint); lastAuto = null; track(); }
+  }
+
+  // 画面中央より上にある最後の目印（本文の「図 N」・図を並べた見出し・図の元の位置）の図を出す。
+  // クリックで選んだ図は、次の参照が中央を越えるまで保つ
+  var lastAuto = null;
+  function track(){
+    if (!three) return;
+    var anchors = main.querySelectorAll('[data-figs]');
+    var line = window.innerHeight * 0.5, pick = null;
+    for (var i = 0; i < anchors.length; i++) {
+      if (anchors[i].getBoundingClientRect().top < line) pick = anchors[i];
+      else break;
+    }
+    var ns = pick ? figsOf(pick) : [order[0]];
+    var key = ns.join(',');
+    if (key !== lastAuto) { lastAuto = key; show(ns); }
+  }
+  var ticking = false;
+  window.addEventListener('scroll', function(){
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function(){ ticking = false; track(); });
+  }, { passive: true });
+
+  main.addEventListener('click', function(e){
+    var a = e.target.closest && e.target.closest('a.figref');
+    if (!a || !three) return;   // 狭い画面では #fig-N へ普通に飛ぶ
+    e.preventDefault();
+    show(figsOf(a));
+  });
+  pane.addEventListener('click', function(e){
+    if (e.target.nodeName === 'IMG') e.target.parentNode.classList.toggle('zoom');
+  });
+
+  var mq = window.matchMedia('(min-width:1280px)');
+  var sync = function(){ setMode(mq.matches); };
+  if (mq.addEventListener) mq.addEventListener('change', sync); else mq.addListener(sync);
+  window.addEventListener('resize', sync);   // change が届かない環境の保険。setMode は同じ状態なら何もしない
+  window.addEventListener('beforeprint', function(){ setMode(false); });
+  window.addEventListener('afterprint', sync);
+  sync();
+})();
+</script>

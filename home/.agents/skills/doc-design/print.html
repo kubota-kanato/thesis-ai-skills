@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>資料のタイトル</title>
+<style>
+/* ============================================================
+   印刷資料モード（A4・手元で見る）
+   本文10.5pt / 行間1.5 / 余白 上下16mm・左右15mm
+   ── このモードは色を使う。有彩色は藍と朱の2色だけ。3色目を足さない。
+   ── ただし★背景色は印刷されない前提で組む★
+      print-color-adjust の既定は economy で、ブラウザとプリンタが背景を消してよい。
+      印刷ダイアログの「背景のグラフィック」も既定オフのことが多く、MDN は
+      「print-color-adjust が何かをするという保証はまったくない」と明記している。
+      → 白抜き文字（濃い地に白文字）を使わない。消えると情報が丸ごと失われる。
+      → 淡い面は「出れば嬉しい」扱い。意味は左罫とラベル文字で担保する。
+   ── 白黒ルールはスライド(slide.html)だけのもの。ここに持ち込まない。
+   ============================================================ */
+:root{
+  --bg:#FFFFFF;
+  --ink:#1A1A1A;      /* 本文             白背景 17.40:1 */
+  --ink-2:#555555;    /* 補助             白背景  7.46:1 */
+  --ink-3:#6E6E6E;    /* 出典・注記        白背景  5.10:1（#8A8A8A は 3.45:1 で AA 不合格）*/
+  --rule:#1A1A1A;
+  --line:#DDDDDD;
+  --tint:#F2F2F2;
+  --accent:#12457A;   /* 藍               白背景  9.73:1  AAA */
+  --accent-d:#0C3159; /* 藍・濃           白背景 13.13:1  AAA */
+  --alert:#9A3412;    /* 朱               白背景  7.31:1  AAA */
+  --tint-a:#EDF2F8;
+  --tint-r:#FBF0EA;
+  /* フォントは3段。Webフォントは読み込まない（すべてローカル）
+     1) Noto Sans JP … 本人PCに可変フォントで導入済み。太さが自在
+     2) BIZ UDPゴシック … Windows 10 1809+ に標準バンドル。他PCでも太い
+     3) 游ゴシックUI … 最後の砦。3つの中で一番細いので先頭には置かない */
+  --sans:"Noto Sans JP","BIZ UDPGothic","BIZ UDPゴシック","Yu Gothic UI",Meiryo,sans-serif;
+  --mono:Consolas,"Courier New",monospace;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+/* ウェイトは 500（本文）/ 700（見出し・強調）の2段だけ。600 は使わない。
+   ※日本語は 12pt 以下を太字にすると漢字の字画が潰れる。小さい文字を太らせない */
+b,strong,th,h1,h2,h3{ font-weight:700; }
+img{ max-width:100%; height:auto; }
+/* 紙ではリンクを押せない。色をつけず、URL は本文か脚注に文字で書く */
+a{ color:inherit; text-decoration:underline; }
+
+@page{ size:A4; margin:16mm 15mm; }
+body{ background:#EDEDED; color:var(--ink); font-family:var(--sans);  /* 画面プレビュー時の外側 */
+      font-size:10.5pt; font-weight:500; line-height:1.5; }
+
+/* 画面プレビュー用の紙。印刷時は解除される */
+.sheet{ width:180mm; min-height:267mm; margin:8mm auto; padding:14mm 12mm;
+        background:var(--bg); border:1px solid var(--line); }
+
+/* 見出しの★文字は黒のまま★。色をつけるのは下の罫線だけ */
+h1{ font-size:19pt; line-height:1.35; margin-bottom:1.5mm; }
+h1 + .sub{ font-size:9pt; color:var(--ink-3); margin-bottom:7mm; }
+h2{ font-size:15pt; line-height:1.4; margin:7mm 0 2.5mm;      /* 本文の1.43倍 */
+    padding-bottom:1mm; border-bottom:1.5pt solid var(--accent); }
+h3{ font-size:12pt; margin:4mm 0 1.5mm; }
+p{ margin-bottom:2.5mm; }
+ul,ol{ margin:0 0 2.5mm 5mm; }
+li{ margin-bottom:1mm; }
+
+/* 表：既定は横罫だけ。上下を太罫、見出しの下は藍の細罫で締める。
+   ★罫線は 0.5pt 以上★（0.25pt 以下はヘアラインで再現保証がない）*/
+table{ border-collapse:collapse; width:100%; font-size:9.5pt; line-height:1.45;
+       margin-bottom:4mm;
+       border-top:1.5pt solid var(--rule); border-bottom:1.5pt solid var(--rule); }
+th,td{ padding:1.5mm 2.5mm; text-align:left; vertical-align:top; }
+th{ border-bottom:0.75pt solid var(--accent); }
+td{ border-bottom:0.5pt solid var(--line); }
+tr:last-child td{ border-bottom:none; }
+/* 縦罫。★余白だけではセルの境界が追えなくなったときだけ★ <table class="grid"> にする。
+   目安: 列が5つ以上／数値が並ぶ／セル内が2行以上に折り返す／手で書き込む欄がある。
+   紙の記入表はほぼ必ずこれに当たる。書き込む欄の罫は本文より濃くする（薄いと消える）*/
+table.grid th, table.grid td{ border-left:0.5pt solid var(--ink-3); }
+table.grid th:first-child, table.grid td:first-child{ border-left:none; }
+table.grid td{ border-bottom:0.5pt solid var(--ink-3); }
+table.grid tr:last-child td{ border-bottom:none; }
+/* 手で書き込む行。ペンが入る高さを確保する（本文の自然高さは約8mmなので、それより大きく取る）*/
+table.grid .fill td{ height:11mm; }
+
+code{ font-family:var(--mono); font-size:9.5pt; }
+pre{ font-family:var(--mono); font-size:9pt; line-height:1.5; background:var(--tint);
+     padding:2.5mm 3mm; margin-bottom:4mm; white-space:pre-wrap;
+     border-left:1pt solid var(--line); }
+
+.note{ font-size:9pt; color:var(--ink-3); line-height:1.6; margin-bottom:2.5mm; }
+
+/* 挿し絵（いらすとや）。見出しの脇に小さく。白黒コピーで潰れない絵を選ぶ
+   使い方: <span class="pic"><img src="..." alt=""></span> を段落の先頭に置く。
+   ★情報を担わせない★ ―― 絵が出なくても意味が通る状態にしておく。
+   探し方・落とし方は irasutoya スキル */
+.pic{ float:right; display:block; width:20mm; margin:0 0 2mm 4mm; }
+.pic img{ display:block; width:100%; }
+
+
+/* 面で強調（色を使わない。1枚に1か所まで）。地が落ちても左罫が残る */
+.box{ background:var(--tint); border-left:2pt solid var(--ink);
+      padding:2.5mm 3.5mm; margin-bottom:4mm; }
+
+/* 注意 ―― 有色の callout はこの1種類だけ。★ラベル文字を必ず置く★
+   藍と朱は色覚型によっては明度で区別できない。意味を担うのは左罫とラベル */
+.warn{ background:var(--tint-r); border-left:2pt solid var(--alert);
+       padding:2.5mm 3.5mm; margin-bottom:4mm; }
+.warn-h{ display:block; font-weight:700; color:var(--alert); font-size:9pt;
+         margin-bottom:0.5mm; }
+
+/* 番号バッジ ―― ★塗りにしない★。背景が印刷されないと白地に白文字で消えるため、
+   枠線＋濃い藍の文字にしてある。ここを background 塗りに変えない */
+.badge{ display:inline-block; min-width:5.5mm; padding:0 1.2mm;
+        border:0.75pt solid var(--accent-d); color:var(--accent-d);
+        font-size:9pt; font-weight:700; text-align:center; }
+
+/* 2段組み。項目が短く数が多いときだけ */
+.cols2{ column-count:2; column-gap:8mm; }
+.cols2 li{ break-inside:avoid; }
+/* 書き込む欄（面接メモ・チェックリスト用）*/
+.blank{ border-bottom:0.5pt solid var(--ink-3); height:6mm; margin-bottom:2mm; }
+
+@media print{
+  body{ background:#fff; }
+  .sheet{ width:auto; min-height:0; margin:0; padding:0; border:none; }
+  h2,h3{ break-after:avoid; page-break-after:avoid; }
+  table,pre,.box,.warn{ break-inside:avoid; page-break-inside:avoid; }
+  .pagebreak{ break-before:page; page-break-before:always; }
+}
+</style>
+</head>
+<body>
+
+<div class="sheet">
+  <h1>資料のタイトル</h1>
+  <div class="sub">用途・日付・宛先を1行で</div>
+
+  <h2>1. 見出し</h2>
+  <p>本文は10.5pt。紙は画面より近くで見るので、この大きさで読める。
+  ただしこれは<strong>自分用のカンペの下限</strong>で、人に配るなら12pt以上にする。
+  強調は<strong>太字だけ</strong>で作る。</p>
+
+  <ul>
+    <li>紙の資料は<strong>1枚で完結</strong>させる。めくると探せなくなる</li>
+    <li>入り切らないときは<strong>削るか2枚にする</strong>。縮小して詰めない</li>
+    <li>当日その場で目が滑らないよう、順番を本番の流れどおりに並べる</li>
+  </ul>
+
+  <h2>2. 見出し</h2>
+  <table>
+    <tr><th>項目</th><th>内容</th><th>備考</th></tr>
+    <tr><td>あ</td><td>い</td><td>表は9.5pt</td></tr>
+    <tr><td>う</td><td>え</td><td>列が少ないので横罫だけで足りる</td></tr>
+  </table>
+
+  <h3>記入表・列の多い表は <code>class="grid"</code></h3>
+  <table class="grid">
+    <tr><th>試料</th><th>秤量 (g)</th><th>濃度 (mM)</th><th>温度 (℃)</th><th>時間 (h)</th><th>実測</th></tr>
+    <tr class="fill"><td>A-1</td><td>0.512</td><td>50</td><td>25</td><td>24</td><td></td></tr>
+    <tr class="fill"><td>A-2</td><td>1.024</td><td>100</td><td>25</td><td>48</td><td></td></tr>
+  </table>
+  <p class="note">書き込む欄がある表・列が5つ以上ある表は、縦罫がないと実験中に列を追えなくなる。</p>
+
+  <div class="box">その場で一番言いたい1点だけ、薄いグレーの面で囲む。</div>
+
+  <div class="warn"><span class="warn-h">注意</span>
+  淡い地は印刷で落ちることがある。落ちても左罫とこのラベルが残るので意味は通る。
+  この作りを崩さない。</div>
+
+  <h3><span class="badge">1</span> 書き込む欄</h3>
+  <div class="blank"></div>
+  <div class="blank"></div>
+
+  <p class="note">補足・出典はこの小ささで。URL は脚注に文字で書く。</p>
+</div>
+
+</body>
+</html>

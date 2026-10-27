@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>資料のタイトル</title>
+<style>
+/* ============================================================
+   読む資料モード（画面で自分が読み返す）
+   本文16px / 行間1.9 / 行長34em / 見出しは本文の1.5倍
+   ── このモードは色を使う。有彩色は藍と朱の2色だけ。3色目を足さない。
+      藍 = たどれるもの・構造の目印（リンク／見出しの下罫／番号／表のヘッダ罫）
+      朱 = 気をつけるところ（注意ボックスの左罫とラベルのみ）
+   ── 白黒ルールはスライド(slide.html)だけのもの。ここに持ち込まない。
+   ============================================================ */
+:root{
+  --bg:#FFFFFF;
+  --ink:#1A1A1A;      /* 本文             白背景 17.40:1 */
+  --ink-2:#555555;    /* 補助             白背景  7.46:1 */
+  --ink-3:#6E6E6E;    /* 出典・注記        白背景  5.10:1（#8A8A8A は 3.45:1 で AA 不合格）*/
+  --rule:#1A1A1A;
+  --line:#DDDDDD;     /* 弱い罫線（装飾） */
+  --tint:#F2F2F2;     /* 薄いグレー面 */
+  --accent:#12457A;   /* 藍               白背景  9.73:1  AAA */
+  --accent-d:#0C3159; /* 藍・濃           白背景 13.13:1  AAA */
+  --alert:#9A3412;    /* 朱               白背景  7.31:1  AAA */
+  --tint-a:#EDF2F8;   /* 藍の淡い面。本文を載せて 15.46:1 */
+  --tint-r:#FBF0EA;   /* 朱の淡い面。本文を載せて 15.54:1 */
+  --fill-ink:#FFFFFF;
+  /* フォントは3段。Webフォントは読み込まない（すべてローカル）
+     1) Noto Sans JP … 本人PCに可変フォントで導入済み。太さが自在
+     2) BIZ UDPゴシック … Windows 10 1809+ に標準バンドル。他PCでも太い
+     3) 游ゴシックUI … 最後の砦。3つの中で一番細いので先頭には置かない */
+  --sans:"Noto Sans JP","BIZ UDPGothic","BIZ UDPゴシック","Yu Gothic UI",Meiryo,sans-serif;
+  --mono:Consolas,"Courier New",monospace;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+/* ウェイトは 500（本文）/ 700（見出し・強調）の2段だけ。
+   600 は游ゴシックにフォールバックしたとき 700 と同じになるので使わない */
+b,strong,th,h1,h2,h3,h4{ font-weight:700; }
+img{ max-width:100%; height:auto; }
+
+/* リンク：藍＋下線。★下線を外さない★
+   藍と本文の明度差は 1.79:1 しかなく、「色だけでリンクと分かる」基準（本文に対し3:1）を
+   満たさない。下線が唯一の手掛かり。外してよいのは左の目次だけ（リンクしか無いので文脈で分かる）*/
+a{ color:var(--accent); text-decoration:underline; text-underline-offset:2px; }
+a:hover{ color:var(--accent-d); }
+
+html{ scroll-behavior:smooth; scroll-padding-top:16px; }
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--sans);
+  font-size:16px; font-weight:500; line-height:1.9;
+}
+#wrap{ display:grid; grid-template-columns:236px minmax(0,1fr); }
+
+/* 左の目次（長い資料では必須。飾りではなく機能）
+   ここだけはリンクの下線を外してよい（リンクしか並んでいないため） */
+#nav{
+  position:sticky; top:0; height:100vh; overflow-y:auto;
+  border-right:1px solid var(--line); padding:24px 14px 60px 20px;
+  font-size:14px; line-height:1.7;
+}
+#nav h1{ font-size:15px; line-height:1.5; margin-bottom:3px; }
+#nav .sub{ font-size:12px; color:var(--ink-3); margin-bottom:14px; }
+#q{ width:100%; font-family:inherit; font-size:13px; padding:6px 8px;
+    border:1px solid var(--ink-3); border-radius:2px; color:var(--ink); }
+#hit{ font-size:12px; color:var(--ink-3); margin:5px 0 10px; min-height:1.4em; }
+#nav a{ display:block; padding:3px 0; color:var(--ink-2); text-decoration:none;
+        border-left:3px solid transparent; padding-left:9px; margin-left:-12px; }
+#nav a:hover{ color:var(--accent); font-weight:700; }
+#nav a.here{ color:var(--accent); font-weight:700; border-left-color:var(--accent); }
+#nav a.lv3{ padding-left:22px; font-size:13px; color:var(--ink-3); }
+#nav a.off{ display:none; }
+
+/* 本文。行長は34em＝日本語で約34字。これ以上長いと目が戻れない */
+main{ padding:46px 40px 140px; }
+main > *{ max-width:34em; }
+/* 表・コード・図だけは横に逃がす */
+main > table, main > pre, main > figure, main > .wide{ max-width:52em; }
+
+/* 見出しの★文字は黒のまま★。色をつけるのは下の罫線だけ。
+   テーマカラーで見出しを塗るのは典型的なアンチパターン（色が意味を失って装飾になる）*/
+h1{ font-size:30px; line-height:1.4; margin-bottom:6px; }
+h1 + .sub{ font-size:14px; color:var(--ink-3); margin-bottom:40px; }
+h2{ font-size:24px; line-height:1.5; margin:56px 0 16px;      /* 本文の1.5倍 */
+    padding-bottom:8px; border-bottom:2.5px solid var(--accent); }
+h3{ font-size:19px; line-height:1.6; margin:30px 0 8px; }
+p{ margin-bottom:16px; }
+ul,ol{ margin:0 0 16px 1.5em; }
+li{ margin-bottom:5px; }
+
+/* 表：既定は横罫だけ。上下を太罫、見出しの下は藍の細罫で締める。セルは余白で分ける */
+table{ border-collapse:collapse; font-size:14px; line-height:1.6; margin-bottom:26px;
+       border-top:2.5px solid var(--rule); border-bottom:2.5px solid var(--rule); }
+th,td{ padding:8px 12px; text-align:left; vertical-align:top; }
+th{ border-bottom:1.5px solid var(--accent); }
+td{ border-bottom:1px solid var(--line); }
+tr:last-child td{ border-bottom:none; }
+/* 縦罫。★余白だけではセルの境界が追えなくなったときだけ★ <table class="grid"> にする。
+   目安: 列が5つ以上／数値が並ぶ／セル内が2行以上に折り返す／手で書き込む欄がある。
+   薄いグレー1本まで。太い格子にしない。ゼブラ縞と併用しない */
+table.grid th, table.grid td{ border-left:1px solid var(--line); }
+table.grid th:first-child, table.grid td:first-child{ border-left:none; }
+
+/* コードは色ではなく「等幅フォント＋淡いグレー地」で示す。
+   シンタックスハイライトは入れない（初心者以外には効果が確認されていない）*/
+code{ font-family:var(--mono); font-size:14px; background:var(--tint);
+      padding:1px 5px; border-radius:2px; }
+pre{ font-family:var(--mono); font-size:14px; line-height:1.65; background:var(--tint);
+     padding:14px 16px; overflow-x:auto; margin-bottom:26px; }
+pre code{ background:none; padding:0; }
+
+/* 引用は色ではなく「左罫＋字下げ」で示す */
+blockquote{ border-left:3px solid var(--line); padding-left:16px;
+            color:var(--ink-2); margin-bottom:16px; }
+
+.note{ font-size:14px; color:var(--ink-3); line-height:1.75; margin-bottom:16px; }
+
+/* 面で強調（色を使わない。ここぞという1点だけ）*/
+.box{ background:var(--tint); border-left:3px solid var(--ink);
+      padding:14px 18px; margin-bottom:26px; }
+
+/* 注意 ―― 有色の callout はこの1種類だけ。増やさない。2つを隣接させない。
+   ★ラベル文字（.warn-h）を必ず置く★
+   藍と朱は P型/D型/T型の色覚ではコントラスト比 1.1〜1.7:1 しかなく明度で区別できない。
+   意味を担うのは左罫とラベルであって、色ではない */
+.warn{ background:var(--tint-r); border-left:4px solid var(--alert);
+       padding:14px 18px; margin-bottom:26px; }
+.warn-h{ display:block; font-weight:700; color:var(--alert); font-size:14px;
+         margin-bottom:4px; }
+
+/* 藍地に白抜きの番号。手順や優先順位に使う（画面用。印刷では枠線に変わる）*/
+.badge{ display:inline-flex; align-items:center; justify-content:center;
+        min-width:24px; height:24px; padding:0 6px; background:var(--accent);
+        color:var(--fill-ink); font-size:13px; font-weight:700; }
+
+/* 図：原図を切り出して貼る。グラフの系列は色ではなく線種・マーカー形状で分ける */
+figure{ margin-bottom:26px; }
+figure img{ border:1px solid var(--line); }
+figcaption{ font-size:13px; color:var(--ink-3); line-height:1.6; margin-top:8px; }
+
+/* 挿し絵（いらすとや）。章・節の頭に置く。本文の右に小さく回り込ませる
+   使い方: <span class="pic"><img src="..." alt=""></span> を段落の先頭に置く。
+   ★情報を担わせない★ ―― 絵が出なくても意味が通る状態にしておく。
+   探し方・落とし方は irasutoya スキル */
+.pic{ float:right; display:block; width:118px; margin:0 0 8px 20px; }
+.pic img{ display:block; width:100%; border:none; }
+
+
+@media print{
+  @page{ size:A4; margin:15mm; }
+  #nav{ display:none; }
+  #wrap{ display:block; }
+  main{ padding:0; }
+  main > *{ max-width:none; }
+  h2,h3{ break-after:avoid; page-break-after:avoid; }
+  figure,pre,table,.box,.warn{ break-inside:avoid; page-break-inside:avoid; }
+  /* 背景は印刷ダイアログで落ちうる。白抜き文字が消えないよう枠線＋濃い文字に切り替える */
+  .badge{ background:none; color:var(--accent-d); border:1px solid var(--accent-d); }
+  /* 紙ではリンクを押せないので URL を展開する */
+  a[href^="http"]::after{ content:" (" attr(href) ")"; font-size:11px; color:var(--ink-3); }
+}
+@media (max-width:820px){
+  #wrap{ display:block; }
+  #nav{ position:static; height:auto; border-right:none;
+        border-bottom:1px solid var(--line); }
+  main{ padding:28px 20px 80px; }
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+
+  <nav id="nav">
+    <h1>資料のタイトル</h1>
+    <div class="sub">最終更新 2026-○-○</div>
+    <input id="q" type="search" placeholder="見出しを絞り込む" autocomplete="off">
+    <div id="hit"></div>
+    <a href="#s1" class="here">1. 見出し</a>
+    <a href="#s1-1" class="lv3">小見出し</a>
+    <a href="#s2">2. 見出し</a>
+  </nav>
+
+  <main>
+    <h1>資料のタイトル</h1>
+    <div class="sub">何のための資料か・誰が読むかを1行で</div>
+
+    <h2 id="s1">1. 見出し</h2>
+    <p>本文。強調は<strong>太字だけ</strong>で作る。色文字・下線・網掛けを重ねない。
+    1段落は3〜5行までにして、それより長くなるなら段落を分ける。行の長さは34字で
+    固定してあるので、ここを広げない。<a href="https://example.com">リンクは藍＋下線</a>で示す。</p>
+
+    <h3 id="s1-1">小見出し</h3>
+    <ul>
+      <li>箇条書きは、文章で書くとくどい列挙にだけ使う</li>
+      <li>全部を箇条書きにすると、項目間の関係が読めなくなる</li>
+    </ul>
+
+    <p class="note">補足・出典はこの小さいグレーで。</p>
+
+    <h3>手順（番号バッジ）</h3>
+    <ol style="list-style:none;margin-left:0">
+      <li><span class="badge">1</span> 順番に意味があるときだけ番号を振る</li>
+      <li><span class="badge">2</span> 印刷すると塗りが枠線に変わる（背景が落ちても消えないため）</li>
+    </ol>
+
+    <h2 id="s2">2. 見出し</h2>
+    <div class="box">ここぞという1点だけ、薄いグレーの面と黒い縦線で囲む。多用すると効かなくなる。</div>
+
+    <div class="warn"><span class="warn-h">注意</span>
+    有色の callout はこの1種類だけ。ラベル文字を必ず置く（色だけに意味を持たせない）。
+    1ページに増やさない。2つを隣接させない。</div>
+
+    <table>
+      <tr><th>項目</th><th>値</th><th>備考</th></tr>
+      <tr><td>あ</td><td>1</td><td>表は本文より小さい14pxでよい</td></tr>
+      <tr><td>い</td><td>2</td><td>列が少ないので横罫だけで足りる</td></tr>
+    </table>
+
+    <h3>列が多い表・数値が並ぶ表は <code>class="grid"</code></h3>
+    <table class="grid wide">
+      <tr><th>試料</th><th>秤量 (g)</th><th>濃度 (mM)</th><th>温度 (℃)</th><th>時間 (h)</th><th>備考</th></tr>
+      <tr><td>A-1</td><td>0.512</td><td>50</td><td>25</td><td>24</td><td>縦罫がないと列を追えない</td></tr>
+      <tr><td>A-2</td><td>1.024</td><td>100</td><td>25</td><td>48</td><td>薄いグレー1本まで</td></tr>
+    </table>
+  </main>
+
+</div>
+<script>
+// 目次の絞り込み。長い資料を読み返すための機能なので残す
+(function(){
+  var q = document.getElementById('q');
+  var hit = document.getElementById('hit');
+  var links = [].slice.call(document.querySelectorAll('#nav a'));
+  q.addEventListener('input', function(){
+    var v = q.value.trim().toLowerCase();
+    var n = 0;
+    links.forEach(function(a){
+      var m = !v || a.textContent.toLowerCase().indexOf(v) >= 0;
+      a.classList.toggle('off', !m);
+      if (m) n++;
+    });
+    hit.textContent = v ? n + ' 件' : '';
+  });
+})();
+</script>
+</body>
+</html>

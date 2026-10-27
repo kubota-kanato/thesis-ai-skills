@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>資料のタイトル</title>
+<style>
+/* ============================================================
+   読む資料モード（画面で自分が読み返す）
+   本文16px / 行間1.9 / 行長34em / 見出しは本文の1.5倍
+   ── このモードは色を使う。有彩色は藍と朱の2色だけ。3色目を足さない。
+      藍 = たどれるもの・構造の目印（リンク／見出しの下罫／番号／表のヘッダ罫）
+      朱 = 気をつけるところ（注意ボックスの左罫とラベルのみ）
+   ── 白黒ルールはスライド(slide.html)だけのもの。ここに持ち込まない。
+   ============================================================ */
+:root{
+  --bg:#FFFFFF;
+  --ink:#1A1A1A;      /* 本文             白背景 17.40:1 */
+  --ink-2:#555555;    /* 補助             白背景  7.46:1 */
+  --ink-3:#6E6E6E;    /* 出典・注記        白背景  5.10:1（#8A8A8A は 3.45:1 で AA 不合格）*/
+  --rule:#1A1A1A;
+  --line:#DDDDDD;     /* 弱い罫線（装飾） */
+  --tint:#F2F2F2;     /* 薄いグレー面 */
+  --accent:#12457A;   /* 藍               白背景  9.73:1  AAA */
+  --accent-d:#0C3159; /* 藍・濃           白背景 13.13:1  AAA */
+  --alert:#9A3412;    /* 朱               白背景  7.31:1  AAA */
+  --tint-a:#EDF2F8;   /* 藍の淡い面。本文を載せて 15.46:1 */
+  --tint-r:#FBF0EA;   /* 朱の淡い面。本文を載せて 15.54:1 */
+  --fill-ink:#FFFFFF;
+  /* フォントは3段。Webフォントは読み込まない（すべてローカル）
+     1) Noto Sans JP … 本人PCに可変フォントで導入済み。太さが自在
+     2) BIZ UDPゴシック … Windows 10 1809+ に標準バンドル。他PCでも太い
+     3) 游ゴシックUI … 最後の砦。3つの中で一番細いので先頭には置かない */
+  --sans:"Noto Sans JP","BIZ UDPGothic","BIZ UDPゴシック","Yu Gothic UI",Meiryo,sans-serif;
+  --mono:Consolas,"Courier New",monospace;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+/* ウェイトは 500（本文）/ 700（見出し・強調）の2段だけ。
+   600 は游ゴシックにフォールバックしたとき 700 と同じになるので使わない */
+b,strong,th,h1,h2,h3,h4{ font-weight:700; }
+img{ max-width:100%; height:auto; }
+
+/* リンク：藍＋下線。★下線を外さない★
+   藍と本文の明度差は 1.79:1 しかなく、「色だけでリンクと分かる」基準（本文に対し3:1）を
+   満たさない。下線が唯一の手掛かり。外してよいのは左の目次だけ（リンクしか無いので文脈で分かる）*/
+a{ color:var(--accent); text-decoration:underline; text-underline-offset:2px; }
+a:hover{ color:var(--accent-d); }
+
+html{ scroll-behavior:smooth; scroll-padding-top:16px; }
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--sans);
+  font-size:16px; font-weight:500; line-height:1.9;
+}
+#wrap{ display:grid; grid-template-columns:236px minmax(0,1fr); }
+
+/* 左の目次（長い資料では必須。飾りではなく機能）
+   ここだけはリンクの下線を外してよい（リンクしか並んでいないため） */
+#nav{
+  position:sticky; top:0; height:100vh; overflow-y:auto;
+  border-right:1px solid var(--line); padding:24px 14px 60px 20px;
+  font-size:14px; line-height:1.7;
+}
+#nav h1{ font-size:15px; line-height:1.5; margin-bottom:3px; }
+#nav .sub{ font-size:12px; color:var(--ink-3); margin-bottom:14px; }
+#q{ width:100%; font-family:inherit; font-size:13px; padding:6px 8px;
+    border:1px solid var(--ink-3); border-radius:2px; color:var(--ink); }
+#hit{ font-size:12px; color:var(--ink-3); margin:5px 0 10px; min-height:1.4em; }
+#nav a{ display:block; padding:3px 0; color:var(--ink-2); text-decoration:none;
+        border-left:3px solid transparent; padding-left:9px; margin-left:-12px; }
+#nav a:hover{ color:var(--accent); font-weight:700; }
+#nav a.here{ color:var(--accent); font-weight:700; border-left-color:var(--accent); }
+#nav a.lv3{ padding-left:22px; font-size:13px; color:var(--ink-3); }
+#nav a.off{ display:none; }
+
+/* 本文。行長は34em＝日本語で約34字。これ以上長いと目が戻れない */
+main{ padding:46px 40px 140px; }
+main > *{ max-width:34em; }
+/* 表・コード・図だけは横に逃がす */
+main > table, main > pre, main > figure, main > .wide{ max-width:52em; }
+
+/* 見出しの★文字は黒のまま★。色をつけるのは下の罫線だけ。
+   テーマカラーで見出しを塗るのは典型的なアンチパターン（色が意味を失って装飾になる）*/
+h1{ font-size:30px; line-height:1.4; margin-bottom:6px; }
+h1 + .sub{ font-size:14px; color:var(--ink-3); margin-bottom:40px; }
+h2{ font-size:24px; line-height:1.5; margin:56px 0 16px;      /* 本文の1.5倍 */
+    padding-bottom:8px; border-bottom:2.5px solid var(--accent); }
+h3{ font-size:19px; line-height:1.6; margin:30px 0 8px; }
+p{ margin-bottom:16px; }
+ul,ol{ margin:0 0 16px 1.5em; }
+li{ margin-bottom:5px; }
+
+/* 表：既定は横罫だけ。上下を太罫、見出しの下は藍の細罫で締める。セルは余白で分ける */
+table{ border-collapse:collapse; font-size:14px; line-height:1.6; margin-bottom:26px;
+       border-top:2.5px solid var(--rule); border-bottom:2.5px solid var(--rule); }
+th,td{ padding:8px 12px; text-align:left; vertical-align:top; }
+th{ border-bottom:1.5px solid var(--accent); }
+td{ border-bottom:1px solid var(--line); }
+tr:last-child td{ border-bottom:none; }
+/* 縦罫。★余白だけではセルの境界が追えなくなったときだけ★ <table class="grid"> にする。
+   目安: 列が5つ以上／数値が並ぶ／セル内が2行以上に折り返す／手で書き込む欄がある。
+   薄いグレー1本まで。太い格子にしない。ゼブラ縞と併用しない */
+table.grid th, table.grid td{ border-left:1px solid var(--line); }
+table.grid th:first-child, table.grid td:first-child{ border-left:none; }
+
+/* コードは色ではなく「等幅フォント＋淡いグレー地」で示す。
+   シンタックスハイライトは入れない（初心者以外には効果が確認されていない）*/
+code{ font-family:var(--mono); font-size:14px; background:var(--tint);
+      padding:1px 5px; border-radius:2px; }
+pre{ font-family:var(--mono); font-size:14px; line-height:1.65; background:var(--tint);
+     padding:14px 16px; overflow-x:auto; margin-bottom:26px; }
+pre code{ background:none; padding:0; }
+
+/* 引用は色ではなく「左罫＋字下げ」で示す */
+blockquote{ border-left:3px solid var(--line); padding-left:16px;
+            color:var(--ink-2); margin-bottom:16px; }
+
+.note{ font-size:14px; color:var(--ink-3); line-height:1.75; margin-bottom:16px; }
+
+/* 面で強調（色を使わない。ここぞという1点だけ）*/
+.box{ background:var(--tint); border-left:3px solid var(--ink);
+      padding:14px 18px; margin-bottom:26px; }
+
+/* 注意 ―― 有色の callout はこの1種類だけ。増やさない。2つを隣接させない。
+   ★ラベル文字（.warn-h）を必ず置く★
+   藍と朱は P型/D型/T型の色覚ではコントラスト比 1.1〜1.7:1 しかなく明度で区別できない。
+   意味を担うのは左罫とラベルであって、色ではない */
+.warn{ background:var(--tint-r); border-left:4px solid var(--alert);
+       padding:14px 18px; margin-bottom:26px; }
+.warn-h{ display:block; font-weight:700; color:var(--alert); font-size:14px;
+         margin-bottom:4px; }
+
+/* 藍地に白抜きの番号。手順や優先順位に使う（画面用。印刷では枠線に変わる）*/
+.badge{ display:inline-flex; align-items:center; justify-content:center;
+        min-width:24px; height:24px; padding:0 6px; background:var(--accent);
+        color:var(--fill-ink); font-size:13px; font-weight:700; }
+
+/* 図：原図を切り出して貼る。グラフの系列は色ではなく線種・マーカー形状で分ける */
+figure{ margin-bottom:26px; }
+figure img{ border:1px solid var(--line); }
+figcaption{ font-size:13px; color:var(--ink-3); line-height:1.6; margin-top:8px; }
+
+/* 挿し絵（いらすとや）。章・節の頭に置く。本文の右に小さく回り込ませる
+   使い方: <span class="pic"><img src="..." alt=""></span> を段落の先頭に置く。
+   ★情報を担わせない★ ―― 絵が出なくても意味が通る状態にしておく。
+   探し方・落とし方は irasutoya スキル */
+.pic{ float:right; display:block; width:118px; margin:0 0 8px 20px; }
+.pic img{ display:block; width:100%; border:none; }
+
+
+@media print{
+  @page{ size:A4; margin:15mm; }
+  #nav{ display:none; }
+  #wrap{ display:block; }
+  main{ padding:0; }
+  main > *{ max-width:none; }
+  h2,h3{ break-after:avoid; page-break-after:avoid; }
+  figure,pre,table,.box,.warn{ break-inside:avoid; page-break-inside:avoid; }
+  /* 背景は印刷ダイアログで落ちうる。白抜き文字が消えないよう枠線＋濃い文字に切り替える */
+  .badge{ background:none; color:var(--accent-d); border:1px solid var(--accent-d); }
+  /* 紙ではリンクを押せないので URL を展開する */
+  a[href^="http"]::after{ content:" (" attr(href) ")"; font-size:11px; color:var(--ink-3); }
+}
+@media (max-width:820px){
+  #wrap{ display:block; }
+  #nav{ position:static; height:auto; border-right:none;
+        border-bottom:1px solid var(--line); }
+  main{ padding:28px 20px 80px; }
+}
+</style>
+<style>
+/* ============================================================
+   3カラムの枠（左に目次・中央に本文・右に札）
+   1332px 以上 … 3カラム。236 + 472 + 624（34em＋左右余白）で 1332
+   1332px 未満 … 札を本文の下に並べる
+   幅は --nav-w / --fig-w で持ち、境界に重ねた取っ手で動かす
+   ── 上の read.html テンプレの値は書き換えていない。ここで上書きするだけ
+   ── メディアクエリはこのファイルの末尾にまとめる。
+      途中に置くと、後ろの素の規則に同じ詳細度で打ち消される
+   ============================================================ */
+:root{ --nav-w:236px; --fig-w:472px; }
+
+#wrap{ position:relative; grid-template-columns:var(--nav-w) minmax(0,1fr); }
+
+/* ---- 右の札 ---------------------------------------------------- */
+#fig{ border-left:1px solid var(--line); padding:22px 20px 60px; }
+#fig .panel-h{ display:flex; align-items:center; gap:8px;
+               font-size:11px; color:var(--ink-3); letter-spacing:.08em;
+               border-bottom:1px solid var(--line); padding-bottom:6px; margin-bottom:10px; }
+#fig .panel-h .ch{ flex:1; min-width:0; letter-spacing:0; color:var(--ink-2);
+                   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#pin{ flex:none; }
+#fig.pinned{ box-shadow:inset 3px 0 0 var(--accent); }
+
+/* 札の番号の並び。いま出ている札が藍。押すと本文がその章へ飛ぶ */
+#rail{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:14px; }
+#rail button{ min-width:28px; padding:3px 7px; font-family:var(--mono); font-size:11px; }
+#rail button[aria-current="true"]{ background:var(--accent); color:var(--fill-ink);
+                                   border-color:var(--accent); }
+
+#fig .card{ margin-bottom:34px; transition:opacity .12s linear; }
+#fig h4{ font-size:14px; line-height:1.5; margin-bottom:3px; }
+#fig .cap{ font-size:12px; color:var(--ink-3); line-height:1.65; margin-bottom:9px; }
+#fig svg{ display:block; width:100%; height:auto;
+          background:#fff; border:1px solid var(--line); }
+#fig .ctl{ font-size:12px; margin-top:9px; }
+#fig .ctl .row{ display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+#fig .ctl .lb{ width:104px; flex:none; color:var(--ink-2); }
+#fig .ctl input[type=range]{ flex:1; min-width:0; accent-color:var(--accent); }
+#fig .ctl .vv{ width:74px; flex:none; text-align:right; font-family:var(--mono); }
+#fig .out{ font-family:var(--mono); font-size:12px; line-height:1.8;
+           background:var(--tint); padding:8px 10px; margin-top:8px; }
+#fig .out .ok{ color:var(--accent-d); font-weight:700; }
+#fig .out .ng{ color:var(--alert); font-weight:700; }
+#fig .btns{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+#fig button{ font-family:inherit; font-size:12px; font-weight:500; line-height:1.4;
+             padding:5px 11px; border:1px solid var(--ink-3); background:#fff;
+             color:var(--ink); cursor:pointer; border-radius:2px; }
+#fig button:hover{ border-color:var(--ink); }
+#fig button[aria-pressed="true"]{ background:var(--ink); color:#fff; border-color:var(--ink); }
+#fig .hint{ font-size:11px; color:var(--ink-3); line-height:1.6; margin-top:7px; }
+#fig .hint b{ color:var(--ink-2); }
+
+/* 図でない札。表・人物・確認の3種。SVG を書かずに右を埋める型 */
+#fig table{ font-size:12px; line-height:1.6; margin-bottom:0; }
+#fig th, #fig td{ padding:5px 8px; }
+#fig .who{ display:flex; gap:10px; align-items:flex-start; margin-bottom:12px; }
+#fig .who img{ width:54px; flex:none; }
+#fig .who .nm{ font-size:13px; font-weight:700; line-height:1.5; }
+#fig .who .ds{ font-size:11px; color:var(--ink-2); line-height:1.65; }
+#fig .qa{ font-size:12px; line-height:1.8; }
+#fig .qa dt{ margin-top:9px; }
+#fig .qa dd{ margin:2px 0 0; color:var(--ink-2); }
+#fig .qa dd[hidden]{ display:none; }
+
+/* 積み上がる札。読み進めた章のものだけ出し、いまの章のものに藍の縦罫を付ける */
+#fig .who[data-since]{ display:none; }
+#fig .who[data-since].on{ display:flex; }
+#fig .who.fresh{ border-left:3px solid var(--accent); padding-left:9px; margin-left:-12px; }
+
+/* ---- 取っ手。1332px 以上のときだけ出て、そのまま境界線になる ---- */
+.grip{ display:none; position:absolute; top:0; bottom:0; width:11px; z-index:5;
+       cursor:col-resize; }
+.grip::after{ content:""; position:absolute; top:0; bottom:0;
+              left:5px; width:1px; background:var(--line); }
+.grip:hover::after, .grip.on::after{ left:4px; width:3px; background:var(--accent); }
+#grip-l{ left:calc(var(--nav-w) - 5px); }
+#grip-r{ right:calc(var(--fig-w) - 5px); }
+body.dragging{ cursor:col-resize; user-select:none; -webkit-user-select:none; }
+
+/* ---- 本文の検索。当たった語を藍の淡い面で示し、いま見ている1つだけ濃くする */
+main .hl{ background:var(--tint-a); border-radius:2px; }
+main .hl.on{ background:var(--accent); color:var(--fill-ink); }
+
+/* ---- ここから下がメディアクエリ。素の規則より後ろに置く -------- */
+@media (min-width:1332px){
+  #wrap{ grid-template-columns:var(--nav-w) minmax(0,1fr) var(--fig-w); }
+  #nav{ border-right:none; }   /* 取っ手が線を兼ねる。二重に引かない */
+  #fig{ position:sticky; top:0; height:100vh; overflow-y:auto; border-left:none; }
+  #fig[data-mode="pin"] .card{ display:none; margin-bottom:0; }
+  #fig[data-mode="pin"] .card[data-always]{ display:block; margin-bottom:26px; }
+  .grip{ display:block; }
+}
+@media (max-width:1331px){
+  #fig{ grid-column:1 / -1; border-top:1px solid var(--line); border-left:none; }
+  #fig .card{ display:block !important; opacity:1 !important; max-width:52em; }
+  #rail, #pin{ display:none; }
+  #fig .who[data-since]{ display:flex; }   /* 2カラムでは全部出す */
+}
+#fig[data-mode="list"] #rail, #fig[data-mode="list"] #pin{ display:none; }
+
+@media (prefers-reduced-motion:reduce){ #fig .card{ transition:none; } }
+@media print{
+  #fig, .grip, #nav{ display:none !important; }
+  #wrap{ display:block; }
+  main .hl{ background:none; }
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+<div class="grip" id="grip-l"></div>
+<div class="grip" id="grip-r"></div>
+
+  <nav id="nav">
+    <h1>資料のタイトル</h1>
+    <div class="sub">最終更新 2026-○-○<br>右に札がある</div>
+    <input id="q" type="search" placeholder="本文を検索（Enterで次へ）" autocomplete="off">
+    <div id="hit"></div>
+    <a href="#s1">1. 見出し</a>
+    <a href="#s1-1" class="lv3">小見出し</a>
+    <a href="#s2">2. 見出し</a>
+    <a href="#s3">3. 見出し</a>
+    <a href="#s4">4. 見出し</a>
+  </nav>
+
+  <main>
+    <h1>資料のタイトル</h1>
+    <div class="sub">何のための資料か・誰が読むかを1行で</div>
+
+    <h2 id="s1" data-fig="c1">1. 見出し</h2>
+
+    <p>本文。行の長さは34字で固定してあるので、ここを広げない。
+    中央の列が広くなっても行長は変わらず、余った幅は右の札に回る。
+    強調は<strong>太字だけ</strong>で作る。<a href="https://example.com">リンクは藍＋下線</a>で示す。</p>
+
+    <p>見出しに <code>data-fig="c1"</code> を付けると、この章を読んでいる間だけ
+    右の <code>data-card="c1"</code> の札が出る。付けなかった章では、直前の札が残る。</p>
+
+    <h3 id="s1-1">小見出し</h3>
+
+    <p>札は <code>data-card</code> で結ぶ。中身は図でなくてよい。
+    表・確認問題・用語の一覧も同じ枠に入る。
+    <strong>右は補足で、本文は中央に全部書く</strong>。
+    右の札を全部消しても、中央だけで話が通じるようにする。</p>
+
+    <div class="box">置くものが無い章には札を作らない。見出しに data-fig を付けなければ、直前の札が残る。</div>
+
+    <h2 id="s2" data-fig="c2">2. 見出し</h2>
+
+    <p>番号の並びは <code>data-label</code> の文字で作る。押すと本文がその章へ飛ぶ。
+    ホバーで出る説明は <code>data-title</code> に書く。</p>
+
+    <p>「固定」を押している間は、スクロールしても札が替わらない。
+    図を触りながら別の章を読むときに使う。固定中は右の縁に藍の線が出る。</p>
+
+    <div class="warn"><span class="warn-h">注意</span>
+    有色の callout はこの1種類だけ。ラベル文字を必ず置く。
+    札の中でも同じで、色だけに意味を持たせない。</div>
+
+    <h2 id="s3" data-fig="c3">3. 見出し</h2>
+
+    <p><code>data-always</code> を付けた札は切り替わらず、ずっと出たままになる。
+    年表・全体図・用語の一覧のように、どの章でも横に置いておきたいものに使う。</p>
+
+    <p>その中の項目に <code>data-since="s2"</code> を付けると、その章を過ぎるまで出ない。
+    読み進めるほど増えていく一覧になる。一度出た語が後の章でも出てくる分野で効く。</p>
+
+    <h2 id="s4" data-fig="c4">4. 見出し</h2>
+
+    <p>右には図や写真も置ける。本文で「図4」と書いて説明し、図そのものは右の札に置く。
+    本文を読みながら、スクロールで流れていかない図を横で見られる。</p>
+
+    <p class="note">ここまでが3カラムの説明。中身を差し替えて使う。
+    CSS は書き換えない。足りない型は既存の型を複製する。</p>
+
+  </main>
+
+  <aside id="fig" data-mode="pin">
+    <div class="panel-h">
+      <span class="ch">右の札</span>
+      <button id="pin" type="button" aria-pressed="false" title="スクロールで切り替わらなくする">固定</button>
+    </div>
+    <div id="rail"></div>
+
+    <!-- 型その1: 常駐して積み上がる一覧。data-always で切り替えない。
+         各行の data-since がその語の初出の章。読み進めた行だけ出る。
+         絵を添えるときは .who の頭に <img src="..."> を置く（無くてもよい） -->
+    <div class="card" data-always="1" id="gloss">
+      <h4>これまでに出た用語</h4>
+      <p class="cap">読み進めると増える。いまの章で出たものに藍の縦罫が付く。</p>
+      <div class="who" data-since="s1">
+        <div><div class="nm">data-fig</div>
+             <div class="ds">本文の見出しに付ける。どの札を出すかを指す。</div></div>
+      </div>
+      <div class="who" data-since="s1-1">
+        <div><div class="nm">data-card</div>
+             <div class="ds">札に付ける。data-fig と同じ値で結ぶ。</div></div>
+      </div>
+      <div class="who" data-since="s2">
+        <div><div class="nm">data-label</div>
+             <div class="ds">番号の並びに出る文字。1文字か2文字に収める。</div></div>
+      </div>
+      <div class="who" data-since="s3">
+        <div><div class="nm">data-always</div>
+             <div class="ds">切り替えずに出しっぱなしにする札に付ける。</div></div>
+      </div>
+      <div class="who" data-since="s3">
+        <div><div class="nm">data-since</div>
+             <div class="ds">その章を過ぎたら出る。積み上がる一覧を作る。</div></div>
+      </div>
+      <div class="hint" id="gloss-empty">まだ何も出ていない。読み進めると増える。</div>
+    </div>
+
+    <!-- 型その2: 動かせる図。つまみ1本。SVG は素で組み立てる（ライブラリを読まない） -->
+    <div class="card" data-card="c1" data-label="1" data-title="動かせる図">
+      <h4>図1　つまみを動かすと答えが変わる</h4>
+      <p class="cap">この型を複製して使う。viewBox は 420 幅に揃える。中の文字は9〜15単位。</p>
+      <svg id="sv-c1" viewBox="0 0 420 260" aria-label="複利で2倍になるまでの年数"></svg>
+      <div class="ctl">
+        <div class="row"><span class="lb">年利</span>
+          <input id="c1-r" type="range" min="0" max="20" step="0.5" value="5">
+          <span class="vv" id="c1-rv">5.0 %</span></div>
+      </div>
+      <div class="out" id="c1-out"></div>
+      <div class="hint">つまみは<b>1本から3本まで</b>。4本以上あると、どれが効いたか分からなくなる。</div>
+    </div>
+
+    <!-- 型その3: 表の早見。SVG を書かずに右を埋める -->
+    <div class="card" data-card="c2" data-label="2" data-title="早見の表">
+      <h4>早見　この章で出た値</h4>
+      <p class="cap">図が要らない章はこれでよい。右を空けるより、横に置きたいものを置く。</p>
+      <table>
+        <tr><th>項目</th><th>値</th></tr>
+        <tr><td>3カラムに入る幅</td><td>1332px</td></tr>
+        <tr><td>目次</td><td>180〜360px</td></tr>
+        <tr><td>右の札</td><td>440〜760px</td></tr>
+        <tr><td>中央（34em＋余白）</td><td>624px</td></tr>
+      </table>
+      <div class="hint">表は<b>4行まで</b>。それより増えるなら本文へ移す。</div>
+    </div>
+
+    <!-- 型その5: 図・写真（動かない補足）。原図を貼り、出典を必ず書く。
+         論文の図、野外写真、地図、柱状図の PNG など。画像は src="img/名前.png" で参照し、
+         渡す前に base64 で埋め込む（irasutoya スキル §5 の方法）。
+         使うときは本文の見出しに data-fig="c4" を付ける -->
+    <div class="card" data-card="c4" data-label="4" data-title="図">
+      <h4>図4　何が読み取れる図かを1行で</h4>
+      <figure>
+        <img src="img/fig4.png" alt="図の中身を短く">
+        <figcaption>図4. 図の説明。出典：著者（年）雑誌名, 図番号</figcaption>
+      </figure>
+      <p class="cap">どこを見ればよいか（軸・凡例・注目する部分）を1〜2行で。</p>
+    </div>
+
+    <!-- 型その4: 章末の確認。押すまで答えを出さない -->
+    <div class="card" data-card="c3" data-label="3" data-title="章末の確認">
+      <h4>確認　ここまでで答えられること</h4>
+      <p class="cap">読んだ直後に自分で試す。答えは押すまで出ない。</p>
+      <dl class="qa" id="c3-qa">
+        <dt>Q1　右に置くものが無い章では、どうするか</dt>
+        <dd hidden>札を作らず、見出しに data-fig を付けない。直前の札が残る</dd>
+        <dt>Q2　章と札は何で結ぶか</dt>
+        <dd hidden>見出しの data-fig と、札の data-card を同じ値にする</dd>
+        <dt>Q3　どの章でも出しておきたい札は</dt>
+        <dd hidden>data-always を付ける。切り替えの対象から外れる</dd>
+      </dl>
+      <div class="btns"><button id="c3-show" aria-pressed="false">答えを出す</button></div>
+      <div class="hint">図を横に置いたまま解きたいときは、上の「固定」を押してから戻る。</div>
+    </div>
+  </aside>
+
+</div>
+<script>
+(function(){
+"use strict";
+
+/* ---- SVG の共通ヘルパ。色は :root と同じ値を写してある -------------
+   回転する3D図が要るときは、yaw/pitch の回転とドラッグを自分で足す */
+var NS = "http://www.w3.org/2000/svg";
+var INK="#1A1A1A", INK2="#555555", INK3="#6E6E6E", LINE="#DDDDDD",
+    ACC="#12457A", ACCD="#0C3159", ALERT="#9A3412", TINT="#F2F2F2", TINTA="#EDF2F8";
+var $ = function(id){ return document.getElementById(id); };
+
+function el(p, tag, a, txt){
+  var e = document.createElementNS(NS, tag);
+  for(var k in a) e.setAttribute(k, a[k]);
+  if(txt != null) e.textContent = txt;
+  p.appendChild(e); return e;
+}
+function clear(n){ while(n.firstChild) n.removeChild(n.firstChild); }
+function fmt(v, n){ return v.toFixed(n); }
+
+/* ================= 図1　複利で2倍になるまで ======================== */
+/* この形を複製して使う。つまみ → 再描画 → 下に数値、の3つで1組 */
+(function(){
+  var svg = $("sv-c1"); if(!svg) return;
+  var sr = $("c1-r"), vr = $("c1-rv"), out = $("c1-out");
+  var X1 = 20, Y0 = 1, Y1 = 4, L = 46, R = 404, T = 14, B = 228;
+  function sx(x){ return L + x/X1*(R-L); }
+  function sy(y){ return B - (y-Y0)/(Y1-Y0)*(B-T); }
+
+  function draw(){
+    var r = parseFloat(sr.value)/100;
+    vr.textContent = fmt(r*100,1) + " %";
+    clear(svg);
+    el(svg,"rect",{x:0,y:0,width:420,height:260,fill:"#fff"});
+    var x, y;
+    for(x=0;x<=X1;x+=5)    el(svg,"line",{x1:sx(x),y1:T,x2:sx(x),y2:B,stroke:LINE,"stroke-width":1});
+    for(y=Y0;y<=Y1;y+=0.5) el(svg,"line",{x1:L,y1:sy(y),x2:R,y2:sy(y),stroke:LINE,"stroke-width":1});
+    el(svg,"line",{x1:L,y1:B,x2:R,y2:B,stroke:INK,"stroke-width":1.5});
+    el(svg,"line",{x1:L,y1:T,x2:L,y2:B,stroke:INK,"stroke-width":1.5});
+    for(x=0;x<=X1;x+=5) el(svg,"text",{x:sx(x),y:B+14,"font-size":9,fill:INK3,"text-anchor":"middle"},""+x);
+    for(y=1;y<=Y1;y+=1)  el(svg,"text",{x:L-5,y:sy(y)+3,"font-size":9,fill:INK3,"text-anchor":"end"},y+"倍");
+    el(svg,"text",{x:R,y:B+14,"font-size":9,fill:INK3,"text-anchor":"end"},"年");
+
+    el(svg,"line",{x1:L,y1:sy(2),x2:R,y2:sy(2),stroke:ALERT,"stroke-width":1,"stroke-dasharray":"4 3"});
+    el(svg,"text",{x:R-3,y:sy(2)-5,"font-size":9,fill:ALERT,"text-anchor":"end"},"2倍");
+
+    var pts = [];
+    for(var i=0;i<=200;i++){
+      var n = X1*i/200;
+      pts.push(sx(n).toFixed(1) + "," + sy(Math.min(Math.pow(1+r,n), Y1)).toFixed(1));
+    }
+    el(svg,"polyline",{points:pts.join(" "),fill:"none",stroke:ACC,
+                       "stroke-width":2.2,"stroke-linejoin":"round"});
+
+    var N = r > 0 ? Math.log(2)/Math.log(1+r) : Infinity;
+    if(r > 0 && N <= X1){
+      el(svg,"line",{x1:sx(N),y1:sy(2),x2:sx(N),y2:B,
+                     stroke:ACCD,"stroke-width":1,"stroke-dasharray":"3 3"});
+      el(svg,"circle",{cx:sx(N),cy:sy(2),r:4.5,fill:ACCD});
+    }
+    out.innerHTML = r <= 0
+      ? '年利 0 % → <span class="ng">増えない</span>'
+      : "2倍まで " + fmt(N,1) + " 年<br>72 ÷ " + fmt(r*100,1) + " = "
+        + fmt(72/(r*100),1) + " 年（72の法則）";
+  }
+  sr.addEventListener("input", draw);
+  draw();
+})();
+
+/* ================= 積み上がる一覧 ================================= */
+/* chrome.js が章を知らせてくる。読み進めた行だけ出す */
+(function(){
+  var card = $("gloss"); if(!card) return;
+  var rows  = [].slice.call(card.querySelectorAll(".who[data-since]"));
+  var empty = $("gloss-empty");
+  var order = [].slice.call(document.querySelectorAll("main h2[id], main h3[id]"))
+                .map(function(h){ return h.id; });
+  function at(id){ return order.indexOf(id); }
+
+  window.PROTO_SECTION = function(cardId, secId){
+    var i = at(secId), n = 0;
+    rows.forEach(function(w){
+      var j  = at(w.getAttribute("data-since"));
+      var on = j >= 0 && i >= j;
+      w.classList.toggle("on", on);
+      w.classList.toggle("fresh", on && j === i);
+      if(on) n++;
+    });
+    if(empty) empty.hidden = n > 0;
+  };
+})();
+
+/* ================= 章末の確認 ===================================== */
+(function(){
+  var b = $("c3-show"), dl = $("c3-qa");
+  if(!b || !dl) return;
+  var on = false;
+  b.addEventListener("click", function(){
+    on = !on;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.textContent = on ? "答えを隠す" : "答えを出す";
+    Array.prototype.forEach.call(dl.querySelectorAll("dd"), function(d){ d.hidden = !on; });
+  });
+})();
+})();
+</script>
+<script>
+/* ============================================================
+   枠の操作。図の中身には触らない
+     1 左右の幅をドラッグで変える。ダブルクリックで既定値へ
+     2 目次の現在地
+     3 読んでいる章に合わせて右の札を出す（固定・番号の並び・遊び付き）
+     4 本文の検索。当たった語を光らせ、Enter で次へ送る
+   ============================================================ */
+(function(){
+"use strict";
+
+var DEF = { n:236, f:472 };
+var LIM = { nMin:180, nMax:360, fMin:440, fMax:760, mainMin:624 };
+var KEY = "proto-layout-v1";
+var LINE = 0.34;   /* 切り替えの目安。画面高さに対する位置 */
+var BAND = 40;     /* 遊び。この幅ぶん行き過ぎるまで替えない */
+
+var root = document.documentElement, body = document.body;
+var nav  = document.getElementById("nav");
+var fig  = document.getElementById("fig");
+var rail = document.getElementById("rail");
+var pinB = document.getElementById("pin");
+var main = document.querySelector("main");
+var chEl = fig ? fig.querySelector(".panel-h .ch") : null;
+var mode = fig ? fig.getAttribute("data-mode") : "list";
+
+var want = { n:DEF.n, f:DEF.f };
+var REDUCE = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var wide   = window.matchMedia("(min-width:1332px)");
+
+/* ---- 1 幅 -------------------------------------------------------- */
+/* file:// で開くと localStorage が例外を投げるブラウザがある。
+   保存できなくても既定値で動くように、読み書きを丸ごと包む */
+function store(v){
+  try{
+    if(v === undefined) return localStorage.getItem(KEY);
+    localStorage.setItem(KEY, v);
+  }catch(e){}
+  return null;
+}
+function save(){ store(JSON.stringify({ n:want.n, f:want.f })); }
+function load(){
+  var s = store(); if(!s) return;
+  try{
+    var o = JSON.parse(s);
+    if(o.n) want.n = o.n;
+    if(o.f) want.f = o.f;
+  }catch(e){}
+}
+function clamp(v,a,b){ return v < a ? a : (v > b ? b : v); }
+
+/* 窓を縮めたときは中央の 624px を守って右から詰める。
+   詰めた値は want に書き戻さない（広げたら元の幅に戻す）*/
+function apply(){
+  var w     = root.clientWidth;
+  var three = wide.matches;   /* 2カラムのときは右の幅が中央を押さない */
+  var f = three ? clamp(want.f, LIM.fMin, Math.max(LIM.fMin, w - want.n - LIM.mainMin)) : want.f;
+  var n = clamp(want.n, LIM.nMin, three ? Math.max(LIM.nMin, w - f - LIM.mainMin) : LIM.nMax);
+  root.style.setProperty("--fig-w", f + "px");
+  root.style.setProperty("--nav-w", n + "px");
+}
+
+function drag(grip, side){
+  if(!grip) return;
+  grip.addEventListener("pointerdown", function(e){
+    e.preventDefault();
+    try{ grip.setPointerCapture(e.pointerId); }catch(err){}
+    grip.classList.add("on"); body.classList.add("dragging");
+    function move(ev){
+      if(side === "l") want.n = clamp(ev.clientX, LIM.nMin, LIM.nMax);
+      else             want.f = clamp(root.clientWidth - ev.clientX, LIM.fMin, LIM.fMax);
+      apply();
+    }
+    function up(){
+      grip.classList.remove("on"); body.classList.remove("dragging");
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointerup", up);
+      grip.removeEventListener("pointercancel", up);
+      save();
+    }
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", up);
+    grip.addEventListener("pointercancel", up);
+  });
+  grip.addEventListener("dblclick", function(){
+    if(side === "l") want.n = DEF.n; else want.f = DEF.f;
+    apply(); save();
+  });
+}
+drag(document.getElementById("grip-l"), "l");
+drag(document.getElementById("grip-r"), "r");
+
+/* ---- 2 目次の現在地 --------------------------------------------- */
+var heads = [].slice.call(document.querySelectorAll("main h2[id], main h3[id]"));
+var links = {};
+[].forEach.call(document.querySelectorAll("#nav a[href^='#']"), function(a){
+  links[a.getAttribute("href").slice(1)] = a;
+});
+var curHead = null;
+
+function spy(){
+  if(!heads.length) return;
+  var line = window.innerHeight * LINE, id = null, h2 = null;
+  for(var i=0;i<heads.length;i++){
+    if(heads[i].getBoundingClientRect().top <= line){
+      id = heads[i].id;
+      if(heads[i].tagName === "H2") h2 = heads[i].id;
+    }
+  }
+  if(id === curHead) return;
+  curHead = id;
+  for(var k in links) links[k].classList.toggle("here", k === id || k === h2);
+  /* 目次が長いとき、光った行が枠の外に出ないよう目次だけを送る */
+  var a = links[id];
+  if(!a || !nav || !wide.matches) return;
+  var ar = a.getBoundingClientRect(), nr = nav.getBoundingClientRect();
+  if(ar.top < nr.top + 8)            nav.scrollTop += ar.top - nr.top - 8;
+  else if(ar.bottom > nr.bottom - 8) nav.scrollTop += ar.bottom - nr.bottom + 8;
+}
+
+/* ---- 3 右の札 ---------------------------------------------------- */
+var marks = [].slice.call(document.querySelectorAll("main [data-fig]"));
+var cards = {};
+[].forEach.call(document.querySelectorAll("#fig .card"), function(c){
+  if(!c.hasAttribute("data-always")) cards[c.getAttribute("data-card")] = c;
+});
+var cur = null, ci = -1, pinned = false;
+
+function ownerOf(id){
+  for(var i=0;i<marks.length;i++){
+    if(marks[i].getAttribute("data-fig") === id) return marks[i];
+  }
+  return null;
+}
+function show(id){
+  if(cur === id) return;
+  cur = id;
+  for(var k in cards) if(k !== id) cards[k].style.display = "none";
+  var n = cards[id];
+  if(n){
+    n.style.display = "block";
+    if(REDUCE){ n.style.opacity = 1; }
+    else{
+      n.style.opacity = 0;
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){ n.style.opacity = 1; });
+      });
+    }
+  }
+  var o = ownerOf(id);
+  if(chEl) chEl.textContent = o ? o.textContent.replace(/\s+/g," ").trim() : "";
+  if(rail){
+    [].forEach.call(rail.children, function(b){
+      b.setAttribute("aria-current", b.getAttribute("data-t") === id ? "true" : "false");
+    });
+  }
+  /* 常駐の札（年表・積み上がる用語）に、いまどの章かを知らせる */
+  if(window.PROTO_SECTION) window.PROTO_SECTION(id, o ? o.id : null);
+}
+function showAll(){
+  for(var k in cards){ cards[k].style.display = "block"; cards[k].style.opacity = 1; }
+  cur = null; ci = -1;
+}
+
+function setPin(v){
+  pinned = v;
+  if(pinB){
+    pinB.setAttribute("aria-pressed", v ? "true" : "false");
+    pinB.textContent = v ? "固定中" : "固定";
+  }
+  if(fig) fig.classList.toggle("pinned", v);
+  if(!v){ ci = -1; pick(); }
+}
+if(pinB) pinB.addEventListener("click", function(){ setPin(!pinned); });
+
+if(rail && mode === "pin"){
+  marks.forEach(function(m){
+    var id = m.getAttribute("data-fig"), c = cards[id];
+    if(!c) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("data-t", id);
+    b.textContent = c.getAttribute("data-label") || id;
+    b.title = c.getAttribute("data-title") || "";
+    b.addEventListener("click", function(){
+      setPin(false);
+      /* 見出しを切り替えの線より少し上へ置く。そのまま pick が拾う */
+      var y = m.getBoundingClientRect().top + window.pageYOffset
+            - (window.innerHeight * LINE - BAND - 2);
+      window.scrollTo({ top:Math.max(0,y), behavior: REDUCE ? "auto" : "smooth" });
+    });
+    rail.appendChild(b);
+  });
+}
+
+function pick(){
+  ticking = false;
+  spy();
+  if(!fig || !marks.length) return;
+  if(mode !== "pin" || !wide.matches){ showAll(); return; }
+  if(pinned) return;
+  /* 最後の章の見出しは、下まで送っても切り替えの線に届かないことがある。
+     いちばん下まで来たら最後の札を出す */
+  if(window.pageYOffset + window.innerHeight >= root.scrollHeight - 2){
+    if(ci !== marks.length - 1){
+      ci = marks.length - 1;
+      show(marks[ci].getAttribute("data-fig"));
+    }
+    return;
+  }
+  var line = window.innerHeight * LINE, bi = 0;
+  for(var i=0;i<marks.length;i++){
+    if(marks[i].getBoundingClientRect().top <= line) bi = i;
+  }
+  if(ci < 0){ ci = bi; show(marks[bi].getAttribute("data-fig")); return; }
+  if(bi === ci) return;
+  /* 見出しが線をまたいだ所で往復しないよう、BAND ぶん行き過ぎるまで待つ */
+  if(bi > ci){
+    if(marks[bi].getBoundingClientRect().top <= line - BAND){
+      ci = bi; show(marks[bi].getAttribute("data-fig"));
+    }
+  }else{
+    if(marks[ci].getBoundingClientRect().top >= line + BAND){
+      ci = bi; show(marks[bi].getAttribute("data-fig"));
+    }
+  }
+}
+
+var ticking = false;
+function onScroll(){ if(!ticking){ ticking = true; requestAnimationFrame(pick); } }
+window.addEventListener("scroll", onScroll, { passive:true });
+window.addEventListener("resize", function(){ apply(); onScroll(); });
+if(wide.addEventListener) wide.addEventListener("change", function(){
+  apply(); ci = -1; cur = null; onScroll();
+});
+
+/* ---- 4 本文の検索 ------------------------------------------------ */
+/* 見出しだけでなく本文の語で引く。当たった章だけ目次に残し、
+   本文の該当語を光らせる。Enter で次、Shift+Enter で前へ送る */
+(function(){
+  var q = document.getElementById("q");
+  if(!q || !main) return;
+  var hit = document.getElementById("hit");
+  var all = [].slice.call(document.querySelectorAll("#nav a[href^='#']"));
+
+  /* カタカナをひらがなに、全角英数を半角に寄せてから比べる。
+     どれも1文字が1文字に移るので、見つけた位置はそのまま元の文字列で使える */
+  function fold(s){
+    return s.toLowerCase()
+      .replace(/[ァ-ヶ]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0x60); })
+      .replace(/[！-～]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+  }
+
+  /* 章ごとの本文を1度だけ集める。見出しから次の見出しまでが1章 */
+  var segs = [], byId = {}, cur = null, lastH2 = null;
+  [].forEach.call(main.children, function(node){
+    if((node.tagName === "H2" || node.tagName === "H3") && node.id){
+      cur = { id:node.id, parent: node.tagName === "H3" ? lastH2 : null, text:"" };
+      if(node.tagName === "H2") lastH2 = node.id;
+      segs.push(cur); byId[cur.id] = cur;
+    }
+    if(cur) cur.text += node.textContent + " ";
+  });
+  segs.forEach(function(s){ s.text = fold(s.text); });
+
+  var hits = [], idx = -1;
+
+  function unmark(){
+    var ns = main.querySelectorAll("span.hl");
+    for(var i = ns.length - 1; i >= 0; i--){
+      var s = ns[i], p = s.parentNode;
+      p.replaceChild(document.createTextNode(s.textContent), s);
+      p.normalize();
+    }
+    hits = []; idx = -1;
+  }
+
+  function mark(v){
+    unmark();
+    if(!v) return;
+    var w = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, null), todo = [], n;
+    while((n = w.nextNode())){
+      if(!n.nodeValue || fold(n.nodeValue).indexOf(v) < 0) continue;
+      todo.push(n);
+    }
+    todo.forEach(function(t){
+      var s = t.nodeValue, low = fold(s), i = 0, k;
+      var out = document.createDocumentFragment();
+      while((k = low.indexOf(v, i)) >= 0){
+        if(k > i) out.appendChild(document.createTextNode(s.slice(i, k)));
+        var sp = document.createElement("span");
+        sp.className = "hl";
+        sp.textContent = s.substr(k, v.length);
+        out.appendChild(sp); hits.push(sp);
+        i = k + v.length;
+      }
+      if(i < s.length) out.appendChild(document.createTextNode(s.slice(i)));
+      t.parentNode.replaceChild(out, t);
+    });
+  }
+
+  function filter(v){
+    var keep = {};
+    if(v){
+      segs.forEach(function(s){ if(s.text.indexOf(v) >= 0) keep[s.id] = 1; });
+      segs.forEach(function(s){ if(keep[s.id] && s.parent) keep[s.parent] = 1; });
+    }
+    var n = 0;
+    all.forEach(function(a){
+      var id = a.getAttribute("href").slice(1);
+      var m = !v || !byId[id] || !!keep[id];
+      a.classList.toggle("off", !m);
+      if(m && byId[id]) n++;
+    });
+    return n;
+  }
+
+  function report(secN){
+    if(!hit) return;
+    if(!q.value.trim()){ hit.textContent = ""; return; }
+    if(!hits.length){ hit.textContent = "見つからない"; return; }
+    hit.textContent = (idx >= 0 ? (idx + 1) + " / " : "") + hits.length + " 件・" + secN + " 章";
+  }
+
+  function go(d){
+    if(!hits.length) return;
+    if(idx >= 0 && hits[idx]) hits[idx].classList.remove("on");
+    idx = (idx + d + hits.length) % hits.length;
+    var m = hits[idx];
+    m.classList.add("on");
+    var y = m.getBoundingClientRect().top + window.pageYOffset - window.innerHeight * LINE;
+    window.scrollTo({ top:Math.max(0, y), behavior: REDUCE ? "auto" : "smooth" });
+    report(secN);
+  }
+
+  var secN = 0, timer = null;
+  function run(){
+    var v = fold(q.value.trim());
+    secN = filter(v);
+    mark(v);
+    report(secN);
+  }
+  q.addEventListener("input", function(){
+    clearTimeout(timer);
+    timer = setTimeout(run, 90);   /* 打っている途中で本文を組み直さない */
+  });
+  q.addEventListener("keydown", function(e){
+    if(e.key === "Enter"){ e.preventDefault(); clearTimeout(timer); if(!hits.length) run(); go(e.shiftKey ? -1 : 1); }
+    if(e.key === "Escape"){ q.value = ""; run(); q.blur(); }
+  });
+})();
+
+load(); apply(); pick();
+})();
+</script>
+</body>
+</html>
